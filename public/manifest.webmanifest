@@ -1,0 +1,13 @@
+{
+  "name": "Media Lists",
+  "short_name": "Media",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#101114",
+  "theme_color": "#101114",
+  "description": "Biblioteka filmów w Markdown.",
+  "icons": [
+    { "src": "./icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
