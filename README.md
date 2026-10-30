@@ -1,51 +1,98 @@
-# Media Lists – MVP 0.1
+# Media Lists – Movies MVP 0.2
 
-Prosta aplikacja PWA: czyta i edytuje pliki Markdown w prywatnym repozytorium GitHub `media_lists`. Bez TMDB i bez zewnętrznej bazy danych.
+Aplikacja PWA do przeglądania i edycji notatek Markdown w prywatnym repozytorium GitHub `media_lists`. Nie korzysta z TMDB API ani z zewnętrznej bazy danych.
 
 ## Repozytoria
 
 - `media_app` – publiczne repozytorium z kodem aplikacji.
-- `media_lists` – prywatne repozytorium z plikami Markdown.
+- `media_lists` – prywatne repozytorium z notatkami Obsidiana.
 
-## 1. Przygotuj repozytorium z danymi
+## Struktura danych
 
-W prywatnym repozytorium `media_lists` utwórz folder, np. `Database`.
-Dodaj w nim pliki `.md`, przykładowo `Interstellar-2014.md`:
+Aplikacja Movies oczekuje struktury:
+
+```text
+media_lists/
+└── Movies/
+    └── Database/
+        ├── 1957/
+        │   └── 12 Angry Men (1957).md
+        ├── 1999/
+        │   └── The Matrix (1999).md
+        └── 2014/
+            └── Interstellar (2014).md
+```
+
+W ustawieniach aplikacji pole folderu powinno mieć wartość `Movies/Database`. Aplikacja przeszukuje ten folder rekurencyjnie, więc odczytuje pliki ze wszystkich folderów lat.
+
+### Format notatki
+
+Aplikacja jest dopasowana do istniejącego formatu Obsidiana. Przykład:
 
 ```yaml
 ---
-title: Interstellar
-year: 2014
-rating: 9.5
-poster: https://image.tmdb.org/t/p/w500/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg
 tags:
   - movie
+  - y2015
+  - y2025
+aliases:
+  - 12 gniewnych ludzi
+rating: 5
+paused: false
+dropped: false
+watched:
+  - "[[2015-07-14 Wt]]"
+  - "[[2025-08-23 So]]"
+seria:
+nr_seri:
+lboxd_url: https://letterboxd.com/film/12-angry-men/
+imdb_url: http://www.imdb.com/title/tt0050083/maindetails
+tmdb_url: https://www.themoviedb.org/movie/389/
+cover: https://image.tmdb.org/t/p/original/qCfHGdUI0xnTChhUQBwboGuzMcu.jpg
+year: 1957
+directors:
+  - "[[Sidney Lumet]]"
+countries:
+  - "[[USA]]"
+genres:
+  - "[[drama]]"
+created: 2025-10-02 18:09
+last_modified: 2026-03-22 22:48
 ---
 
-Świetny film.
+![cover|200](https://image.tmdb.org/t/p/original/qCfHGdUI0xnTChhUQBwboGuzMcu.jpg)
 ```
 
-Pole `poster` może być pełnym adresem URL do grafiki. Dla zgodności ze starszymi notatkami aplikacja rozpoznaje też `poster_path` i `cover`, a wartości zaczynające się od `/` traktuje jako ścieżkę plakatu TMDB.
+- Tytuł jest pobierany z nazwy pliku, np. `12 Angry Men (1957).md` → `12 Angry Men`.
+- Rok jest pobierany z `year`.
+- Ocena jest pobierana z `rating`.
+- Plakat jest pobierany z `cover`.
+- Pozostałe właściwości YAML oraz treść notatki są zachowywane podczas edycji.
+- Przy zmianie plakatu aplikacja aktualizuje również osadzony obraz `![cover|200](...)` w treści notatki.
+- Przy dodawaniu filmu aplikacja tworzy plik `Movies/Database/ROK/Tytuł (ROK).md`.
+- Przy zmianie tytułu lub roku istniejący plik jest przenoszony do nowej ścieżki.
+- Aplikacja aktualizuje `last_modified` oraz tag `yROK`; zachowuje pozostałe tagi i właściwości.
 
-Rozpoznawane pola:
-- tytuł: `title` lub `name`
-- rok: `year` lub `release_year`
-- ocena: `rating` lub `ocena`
-- plakat: `poster`, `poster_url`, `poster_path` lub `cover`
+## Konfiguracja GitHub
 
-## 2. Utwórz token GitHub
+Otwórz https://github.com/settings/personal-access-tokens/new i utwórz Fine-grained Personal Access Token:
 
-Otwórz https://github.com/settings/personal-access-tokens/new
-
-Wygeneruj Fine-grained Personal Access Token:
 - Resource owner: Twoje konto
 - Repository access: Only select repositories → `media_lists`
 - Repository permissions → Contents: Read and write
 - Metadata: Read-only (domyślne)
 
-Skopiuj token. Nie umieszczaj go w kodzie ani w repozytorium.
+W aplikacji otwórz Ustawienia i podaj:
 
-## 3. Uruchom lokalnie
+- GitHub username
+- Repozytorium: `media_lists`
+- Branch: `main` (lub właściwy branch)
+- Folder: `Movies/Database`
+- GitHub token
+
+Token jest przechowywany w localStorage tej przeglądarki. Używaj wyłącznie własnej, zaufanej wersji aplikacji i nie udostępniaj tokenu.
+
+## Uruchomienie lokalne
 
 Wymagany Node.js 20+.
 
@@ -54,49 +101,21 @@ npm install
 npm run dev
 ```
 
-Otwórz adres Vite, zwykle `http://localhost:5173`.
+## Publikacja na GitHub Pages
 
-W aplikacji kliknij ikonę ustawień i podaj:
-- GitHub username
-- Repozytorium: `media_lists`
-- Branch: `main` (jeśli inny, zmień)
-- Folder z plikami: `Database` (zmień, jeśli używasz innego)
-- GitHub token
+W repozytorium `media_app` ustaw Settings → Pages → Build and deployment → Source → GitHub Actions. Workflow znajduje się w `.github/workflows/deploy.yml`.
 
-Kliknij „Testuj GitHub”, następnie „Zapisz i wczytaj”.
-
-## 4. Wgraj kod do `media_app`
-
-Skopiuj zawartość tego projektu do publicznego repozytorium `media_app` i wypchnij na branch `main`.
-
-Workflow GitHub Actions jest już dodany. W repozytorium `media_app` przejdź do:
-Settings → Pages → Build and deployment → Source → GitHub Actions.
-
-Po pushu aplikacja będzie dostępna pod adresem:
+Adres aplikacji:
 
 `https://TWOJ_LOGIN.github.io/media_app/`
 
-Uwaga: `vite.config.ts` ma już ustawione `base: "/media_app/"`.
+## Rozszerzanie o kolejne typy mediów
 
-## 5. Dodaj jako aplikację na iPhonie
+Docelowe foldery danych mogą mieć analogiczną strukturę:
 
-1. Otwórz adres GitHub Pages w Safari.
-2. Udostępnij → Dodaj do ekranu początkowego.
-3. Uruchom aplikację z nowej ikony.
+```text
+TV/Database/ROK/Serial (ROK).md
+Games/Database/ROK/Gra (ROK).md
+```
 
-## Co zawiera MVP
-
-- Grid plakatów, tytułów i ocen.
-- Wyszukiwanie po tytule w bibliotece.
-- Ręczne dodawanie wpisu.
-- Edycja i usuwanie wpisów.
-- Odczyt i zapis Markdown przez GitHub API.
-- PWA i prosty cache aplikacji.
-
-## Bezpieczeństwo – ważne
-
-Token GitHub jest zapisany w localStorage przeglądarki. To proste rozwiązanie dla osobistego MVP, ale nie jest zabezpieczeniem klasy produkcyjnej: skrypt uruchomiony w obrębie aplikacji mógłby go odczytać. Używaj wyłącznie własnego, zaufanego kodu; token ogranicz do jednego prywatnego repozytorium `media_lists` i nie udostępniaj go nikomu. Nie wpisuj tokenu w kodzie ani w plikach repozytorium.
-
-GitHub Pages hostuje publiczną aplikację, ale prywatne pliki Markdown są pobierane bezpośrednio przez API po autoryzacji. Repozytorium `media_lists` pozostaje prywatne.
-
-Aplikacja nie ma TMDB API. Adres plakatu wpisujesz ręcznie. Przy edycji zachowywane są pozostałe pola YAML i treść notatki.
+Ta wersja jest skonfigurowana dla Movies. Kolejne sekcje TV i Games można dodać, wskazując odpowiedni folder i dostosowując pola specyficzne dla danego typu mediów.

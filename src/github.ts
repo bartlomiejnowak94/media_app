@@ -52,19 +52,15 @@ function parseMovie(path: string, sha: string, content: string): Movie {
   const frontmatter = match ? (parse(match[1]) || {}) as Record<string, unknown> : {};
   const body = match ? match[2] : content;
   const filename = path.split("/").pop()?.replace(/\.md$/i, "") || "Bez tytułu";
-  const title = String(frontmatter.title || frontmatter.name || filename);
-  const posterValue = String(frontmatter.poster || frontmatter.poster_url || frontmatter.cover || "");
-  const poster = posterValue.startsWith("http")
-    ? posterValue
-    : posterValue
-      ? `https://image.tmdb.org/t/p/w500${posterValue}`
-      : "";
+  // In this library the title lives in the filename: "12 Angry Men (1957)".
+  const title = filename.replace(/\s*\(\d{4}\)$/, "").trim();
+  const poster = String(frontmatter.cover || "");
   return {
     path,
     sha,
     title,
-    year: String(frontmatter.year || frontmatter.release_year || ""),
-    rating: String(frontmatter.rating ?? frontmatter.ocena ?? ""),
+    year: String(frontmatter.year || ""),
+    rating: String(frontmatter.rating ?? ""),
     poster,
     body,
     frontmatter,
@@ -104,38 +100,85 @@ export async function testGitHub(s: Settings) {
   await request(contentsUrl(s), s.token);
 }
 
+function localTimestamp() {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function updateCoverInBody(body: string, cover: string) {
+  const imageLine = /^!\[cover(?:\|\d+)?\]\([^\n]*\)$/m;
+  if (!cover) return body.replace(imageLine, "").trim();
+  const markdownImage = `![cover|200](${cover})`;
+  if (imageLine.test(body)) return body.replace(imageLine, markdownImage);
+  return `${body.trim()}${body.trim() ? "\n\n" : ""}${markdownImage}`;
+}
+
 export async function saveMovie(
   s: Settings,
   movie: Movie | null,
   values: { title: string; year: string; rating: string; poster: string; note: string }
 ) {
-  const slug = values.title.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "").toLowerCase() || "film";
-  const filename = `${slug}${values.year ? `-${values.year}` : ""}.md`;
+  const title = values.title.trim();
+  const year = values.year.trim();
+  if (!title) throw new Error("Podaj tytuł filmu.");
+  if (!/^\d{4}$/.test(year)) throw new Error("Podaj rok w formacie RRRR.");
+
   const folder = cleanFolder(s.folder);
-  const existingPath = movie?.path || `${folder}/${filename}`;
-  const relativePath = existingPath.startsWith(`${folder}/`) ? existingPath.slice(folder.length + 1) : existingPath;
+  const filename = `${title} (${year}).md`;
+  const targetPath = `${folder}/${year}/${filename}`;
+  const oldPath = movie?.path || "";
   const poster = values.poster.trim();
-  const frontmatter = {
-    ...(movie?.frontmatter || {}),
-    title: values.title.trim(),
-    year: values.year || undefined,
-    rating: values.rating === "" ? undefined : Number(values.rating),
-    poster: poster || undefined,
+
+  // Start from the original YAML so tags, aliases, watched dates and all
+  // Obsidian-specific properties survive edits unchanged.
+  const frontmatter: Record<string, unknown> = movie ? { ...movie.frontmatter } : {
+    tags: ["movie"],
+    aliases: [],
+    paused: false,
+    dropped: false,
+    watched: [],
+    seria: null,
+    nr_seri: null,
+    lboxd_url: "",
+    imdb_url: "",
+    tmdb_url: "",
+    directors: [],
+    countries: [],
+    genres: [],
+    created: localTimestamp(),
   };
+
+  // Keep the Obsidian schema: cover/year/rating, not title/poster/release_year.
+  frontmatter.year = Number(year);
+  frontmatter.rating = values.rating === "" ? null : Number(values.rating);
+  frontmatter.cover = poster || null;
+  frontmatter.last_modified = localTimestamp();
   const yaml = stringify(frontmatter, { lineWidth: 0 }).trimEnd();
-  const body = values.note.trim();
-  const content = `---\n${yaml}\n---\n${body ? `\n${body}\n` : "\n"}`;
+  const body = updateCoverInBody(values.note, poster);
+  const content = `---\n${yaml}\n---\n\n${body.trim()}\n`;
   const payload: Record<string, unknown> = {
-    message: `${movie ? "Update" : "Add"} ${values.title.trim()}`,
+    message: `${movie ? "Update" : "Add"} ${title} (${year})`,
     content: encodeBase64(content),
     branch: s.branch,
   };
-  if (movie?.sha) payload.sha = movie.sha;
-  await request(contentsUrl(s, relativePath), s.token, {
+
+  // If the title/year changed, create the file in the correct year folder,
+  // then remove the previous path. Otherwise update the existing file.
+  const destination = movie && oldPath === targetPath ? oldPath : targetPath;
+  if (movie && oldPath === destination) payload.sha = movie.sha;
+  await request(contentsUrl(s, destination.startsWith(`${folder}/`) ? destination.slice(folder.length + 1) : destination), s.token, {
     method: "PUT",
     body: JSON.stringify(payload),
   });
+
+  if (movie && oldPath !== destination) {
+    const relativeOld = oldPath.startsWith(`${folder}/`) ? oldPath.slice(folder.length + 1) : oldPath;
+    await request(contentsUrl(s, relativeOld), s.token, {
+      method: "DELETE",
+      body: JSON.stringify({ message: `Move ${title} to ${year}`, sha: movie.sha, branch: s.branch }),
+    });
+  }
 }
 
 export async function deleteMovie(s: Settings, movie: Movie) {

@@ -4,12 +4,16 @@ import { deleteMovie, loadMovies, saveMovie, testGitHub } from "./github";
 import type { Movie, Settings } from "./types";
 
 const STORAGE_KEY = "media-app-settings";
-const defaults: Settings = { owner: "", repo: "media_lists", branch: "main", folder: "Database", token: "" };
+const defaults: Settings = { owner: "", repo: "media_lists", branch: "main", folder: "Movies/Database", token: "" };
 
 export default function App() {
   const [settings, setSettings] = useState<Settings>(() => {
-    try { return { ...defaults, ...JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}") }; }
-    catch { return defaults; }
+    try {
+      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+      // Migrate the previous MVP default to the new Movies folder.
+      if (saved.folder === "Database") saved.folder = "Movies/Database";
+      return { ...defaults, ...saved };
+    } catch { return defaults; }
   });
   const [movies, setMovies] = useState<Movie[]>([]);
   const [loading, setLoading] = useState(false);
@@ -74,6 +78,7 @@ export default function App() {
 
   async function save() {
     if (!title.trim()) return;
+    if (!/^\d{4}$/.test(year.trim())) { setError("Podaj rok w formacie RRRR."); return; }
     if (rating !== "" && (Number(rating) < 0 || Number(rating) > 10)) {
       setError("Ocena musi mieścić się w zakresie 0–10.");
       return;
@@ -147,7 +152,7 @@ export default function App() {
         <p className="help">Podaj dane prywatnego repozytorium <b>media_lists</b>. Token jest przechowywany lokalnie w tej przeglądarce.</p>
         <label>GitHub username<input value={settings.owner} onChange={e => setSettings({...settings, owner:e.target.value})} placeholder="Twój login GitHub"/></label>
         <label>Repozytorium danych<input value={settings.repo} onChange={e => setSettings({...settings, repo:e.target.value})} placeholder="media_lists"/></label>
-        <div className="two-col"><label>Branch<input value={settings.branch} onChange={e => setSettings({...settings, branch:e.target.value})} placeholder="main"/></label><label>Folder z plikami MD<input value={settings.folder} onChange={e => setSettings({...settings, folder:e.target.value})} placeholder="Database"/></label></div>
+        <div className="two-col"><label>Branch<input value={settings.branch} onChange={e => setSettings({...settings, branch:e.target.value})} placeholder="main"/></label><label>Folder z plikami MD<input value={settings.folder} onChange={e => setSettings({...settings, folder:e.target.value})} placeholder="Movies/Database"/></label></div>
         <label>GitHub Fine-grained Personal Access Token<input type="password" autoComplete="off" value={settings.token} onChange={e => setSettings({...settings, token:e.target.value})} placeholder="github_pat_..."/></label>
         <div className="help">Token: wybierz tylko repozytorium <b>media_lists</b> i ustaw Repository permissions → Contents: Read and write. Metadata pozostaw Read-only.</div>
         <div className="modal-actions"><button className="secondary-btn" onClick={async () => { try { await testGitHub(settings); alert("Połączenie z GitHubem działa."); } catch(e) { alert((e as Error).message); } }}>Testuj GitHub</button><button className="primary-btn" onClick={() => {setShowSettings(false); void refresh();}}>Zapisz i wczytaj</button></div>
@@ -157,7 +162,7 @@ export default function App() {
     {showEditor && <div className="modal-backdrop" onMouseDown={e => e.target === e.currentTarget && setShowEditor(false)}>
       <section className="modal">
         <div className="modal-head"><div><p className="eyebrow">{editing ? "EDYCJA WPISU" : "NOWY WPIS"}</p><h2>{editing ? "Edytuj film" : "Dodaj film"}</h2></div><button className="icon-btn" onClick={() => setShowEditor(false)}><X/></button></div>
-        <p className="help">Uzupełnij dane ręcznie. Plakat może być bezpośrednim adresem URL do obrazka.</p>
+        <p className="help">Uzupełnij dane ręcznie. Film zostanie zapisany jako Movies/Database/ROK/Tytuł (ROK).md. Plakat może być bezpośrednim adresem URL do obrazka.</p>
         <label>Tytuł<input value={title} onChange={e => setTitle(e.target.value)} placeholder="Np. Blade Runner 2049"/></label>
         <div className="two-col">
           <label>Rok<input inputMode="numeric" value={year} onChange={e => setYear(e.target.value)} placeholder="2017"/></label>
