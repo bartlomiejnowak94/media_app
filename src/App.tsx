@@ -34,12 +34,12 @@ export default function App() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
   }, [settings]);
 
-  async function refresh() {
+  async function refresh(notBefore?: number) {
     if (!configured) { setShowSettings(true); return; }
     setLoading(true);
     setError("");
     try {
-      setMovies(await loadMovies(settings));
+      setMovies(await loadMovies(settings, notBefore));
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -86,9 +86,10 @@ export default function App() {
     setLoading(true);
     setError("");
     try {
+      const indexNotBefore = Date.now();
       await saveMovie(settings, editing, { title, year, rating, poster, note });
       setShowEditor(false);
-      await refresh();
+      await refresh(indexNotBefore);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -101,8 +102,9 @@ export default function App() {
     setLoading(true);
     setError("");
     try {
+      const indexNotBefore = Date.now();
       await deleteMovie(settings, movie);
-      await refresh();
+      await refresh(indexNotBefore);
     } catch (e) {
       setError((e as Error).message);
     } finally {

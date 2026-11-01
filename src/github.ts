@@ -1,4 +1,4 @@
-import { parse, stringify } from "yaml";
+import { stringify } from "yaml";
 import type { Movie, Settings } from "./types";
 
 const API = "https://api.github.com";
@@ -10,12 +10,6 @@ function headers(token: string) {
     "X-GitHub-Api-Version": "2022-11-28",
     "Content-Type": "application/json",
   };
-}
-
-function decodeBase64(value: string): string {
-  const binary = atob(value.replace(/\n/g, ""));
-  const bytes = Uint8Array.from(binary, c => c.charCodeAt(0));
-  return new TextDecoder().decode(bytes);
 }
 
 function encodeBase64(value: string): string {
@@ -47,52 +41,61 @@ async function request(url: string, token: string, init?: RequestInit): Promise<
   return response.status === 204 ? null : response.json();
 }
 
-function parseMovie(path: string, sha: string, content: string): Movie {
-  const match = content.match(/^---\s*\r?\n([\s\S]*?)\r?\n---\s*(?:\r?\n|$)([\s\S]*)$/);
-  const frontmatter = match ? (parse(match[1]) || {}) as Record<string, unknown> : {};
-  const body = match ? match[2] : content;
-  const filename = path.split("/").pop()?.replace(/\.md$/i, "") || "Bez tytułu";
-  // In this library the title lives in the filename: "12 Angry Men (1957)".
-  const title = filename.replace(/\s*\(\d{4}\)$/, "").trim();
-  const poster = String(frontmatter.cover || "");
-  return {
-    path,
-    sha,
-    title,
-    year: String(frontmatter.year || ""),
-    rating: String(frontmatter.rating ?? ""),
-    poster,
-    body,
-    frontmatter,
-  };
+function repositoryContentsUrl(s: Settings, path: string) {
+  const encoded = path.split("/").filter(Boolean).map(encodeURIComponent).join("/");
+  return `${API}/repos/${encodeURIComponent(s.owner)}/${encodeURIComponent(s.repo)}/contents/${encoded}?ref=${encodeURIComponent(s.branch)}`;
 }
 
-async function collectMarkdown(s: Settings, relativePath = ""): Promise<{ path: string; sha: string }[]> {
-  const items = await request(contentsUrl(s, relativePath), s.token);
-  if (!Array.isArray(items)) return [];
-  const found: { path: string; sha: string }[] = [];
-  for (const item of items) {
-    if (item.type === "file" && item.name.toLowerCase().endsWith(".md")) {
-      found.push({ path: item.path, sha: item.sha });
-    } else if (item.type === "dir") {
-      const prefix = `${cleanFolder(s.folder)}/`;
-      const childRelative = item.path.startsWith(prefix) ? item.path.slice(prefix.length) : item.path;
-      found.push(...await collectMarkdown(s, childRelative));
+function indexPath(s: Settings) {
+  const parts = cleanFolder(s.folder).split("/").filter(Boolean);
+  parts.pop();
+  return [...parts, "movies_index.json"].join("/");
+}
+
+async function requestText(url: string, token: string): Promise<string> {
+  const response = await fetch(url, {
+    cache: "no-store",
+    headers: {
+      ...headers(token),
+      Accept: "application/vnd.github.raw+json",
+    },
+  });
+  if (!response.ok) {
+    let message = `GitHub API: ${response.status}`;
+    try {
+      const data = await response.json();
+      message = data.message || message;
+    } catch { /* response was not JSON */ }
+    throw new Error(message);
+  }
+  return response.text();
+}
+
+export async function loadMovies(s: Settings, notBefore?: number): Promise<Movie[]> {
+  const url = repositoryContentsUrl(s, indexPath(s));
+  // The index is generated in the private data repository by GitHub Actions.
+  // Raw content avoids the 1 MB Contents API JSON response limit.
+  const attempts = notBefore ? 20 : 1;
+  let lastIndex: { generatedAt?: string; movies?: Movie[] } | null = null;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    let raw: string;
+    try {
+      raw = await requestText(url, s.token);
+    } catch (e) {
+      if ((e as Error).message === "Not Found") {
+        throw new Error("Nie znaleziono movies_index.json. Skopiuj skrypt i workflow do repozytorium media_lists, a następnie uruchom workflow Generate movies index.");
+      }
+      throw e;
     }
+    lastIndex = JSON.parse(raw) as { generatedAt?: string; movies?: Movie[] };
+    const generatedAt = lastIndex.generatedAt ? Date.parse(lastIndex.generatedAt) : 0;
+    if (!notBefore || generatedAt >= notBefore) {
+      if (!Array.isArray(lastIndex.movies)) throw new Error("Nieprawidłowy format movies_index.json.");
+      return lastIndex.movies.sort((a, b) => a.title.localeCompare(b.title, "pl"));
+    }
+    await new Promise(resolve => setTimeout(resolve, 1500));
   }
-  return found;
-}
-
-export async function loadMovies(s: Settings): Promise<Movie[]> {
-  const files = await collectMarkdown(s);
-  const folderPrefix = `${cleanFolder(s.folder)}/`;
-  const movies: Movie[] = [];
-  for (const file of files) {
-    const relative = file.path.startsWith(folderPrefix) ? file.path.slice(folderPrefix.length) : file.path;
-    const data = await request(contentsUrl(s, relative), s.token);
-    if (data?.content) movies.push(parseMovie(file.path, data.sha, decodeBase64(data.content)));
-  }
-  return movies.sort((a, b) => a.title.localeCompare(b.title, "pl"));
+  throw new Error("Indeks filmów nie został jeszcze zaktualizowany przez GitHub Actions. Spróbuj odświeżyć bibliotekę za chwilę.");
 }
 
 export async function testGitHub(s: Settings) {

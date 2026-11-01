@@ -1,6 +1,6 @@
 # Media Lists – Movies MVP 0.2
 
-Aplikacja PWA do przeglądania i edycji notatek Markdown w prywatnym repozytorium GitHub `media_lists`. Nie korzysta z TMDB API ani z zewnętrznej bazy danych.
+Aplikacja PWA do przeglądania i edycji notatek Markdown w prywatnym repozytorium GitHub `media_lists`. Markdown pozostaje źródłem prawdy, a aplikacja pobiera jeden generowany automatycznie plik `Movies/movies_index.json` zamiast odpytywać GitHub API osobno dla każdego filmu. Nie korzysta z TMDB API ani z zewnętrznej bazy danych.
 
 ## Repozytoria
 
@@ -23,7 +23,7 @@ media_lists/
             └── Interstellar (2014).md
 ```
 
-W ustawieniach aplikacji pole folderu powinno mieć wartość `Movies/Database`. Aplikacja przeszukuje ten folder rekurencyjnie, więc odczytuje pliki ze wszystkich folderów lat.
+W ustawieniach aplikacji pole folderu powinno mieć wartość `Movies/Database`. Pliki Markdown są indeksowane rekurencyjnie przez GitHub Actions; aplikacja pobiera gotowy indeks `Movies/movies_index.json` jednym żądaniem.
 
 ### Format notatki
 
@@ -72,6 +72,18 @@ last_modified: 2026-03-22 22:48
 - Przy dodawaniu filmu aplikacja tworzy plik `Movies/Database/ROK/Tytuł (ROK).md`.
 - Przy zmianie tytułu lub roku istniejący plik jest przenoszony do nowej ścieżki.
 - Aplikacja aktualizuje `last_modified` oraz tag `yROK`; zachowuje pozostałe tagi i właściwości.
+
+
+## Automatyczny indeks JSON
+
+W folderze `media_lists_setup/` znajduje się skrypt i workflow do skopiowania do prywatnego repozytorium `media_lists`. Skopiuj:
+
+- `media_lists_setup/scripts/generate-movies-index.mjs` → `media_lists/scripts/generate-movies-index.mjs`
+- `media_lists_setup/.github/workflows/generate-movies-index.yml` → `media_lists/.github/workflows/generate-movies-index.yml`
+
+Następnie uruchom w repozytorium `media_lists` → Actions → **Generate movies index** → **Run workflow**. Workflow utworzy `Movies/movies_index.json` i będzie aktualizował go po zmianach plików Markdown. Szczegóły znajdują się w `media_lists_setup/README.md`.
+
+Indeks zawiera metadane, treść notatek oraz Git blob SHA, więc aplikacja zachowuje możliwość edycji i usuwania istniejących filmów. Po zapisie lub usunięciu aplikacja czeka na wygenerowanie nowego indeksu.
 
 ## Konfiguracja GitHub
 
