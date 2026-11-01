@@ -193,6 +193,31 @@ export default function App() {
     [watchedMovies]
   );
 
+  const ratingDistribution = useMemo(() => {
+  const distribution = [2, 3, 4, 5].map(rating => ({
+    rating,
+    count: watchedMovies.filter(
+      movie => getRating(movie) === rating
+    ).length
+  }));
+
+  return distribution;
+}, [watchedMovies]);
+
+const maxRatingCount = Math.max(
+  1,
+  ...ratingDistribution.map(item => item.count)
+);
+
+const averageRating = watchedMovies.length
+  ? (
+      watchedMovies.reduce(
+        (sum, movie) => sum + (getRating(movie) || 0),
+        0
+      ) / watchedMovies.length
+    ).toFixed(2)
+  : "—";
+
   const visibleMovies = useMemo(() => {
     let result = [...movies];
 
@@ -392,6 +417,39 @@ export default function App() {
                     <div className="stat-value">{backlogMovies.length}</div>
                   </article>
                 </div>
+
+                <section className="rating-section">
+                  <div className="section-heading">
+                    <div>
+                      <p className="eyebrow">YOUR TASTE</p>
+                      <h2>Rating Distribution</h2>
+                    </div>
+                    <div className="average-rating">
+                      <Star size={16} fill="currentColor" />
+                      <strong>{averageRating}</strong>
+                      <span>average</span>
+                    </div>
+                  </div>
+
+                  <div className="rating-chart">
+                    {ratingDistribution.map(item => (
+                      <div className="rating-column" key={item.rating}>
+                        <span className="rating-count">{item.count}</span>
+
+                        <div className="rating-bar-container">
+                          <div
+                            className="rating-bar"
+                            style={{
+                              height: `${(item.count / maxRatingCount) * 100}%`
+                            }}
+                          />
+                        </div>
+
+                        <span className="rating-number">{item.rating}</span>
+                      </div>
+                    ))}
+                  </div>
+                </section>
 
                 <section className="recent-section">
                   <div className="section-heading">
