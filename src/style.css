@@ -367,3 +367,164 @@
     height: 155px;
   }
 }
+
+/* Year statistics */
+
+.year-statistics {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.year-heading {
+  margin-bottom: 0;
+}
+
+.year-select {
+  background: #191a1f;
+  border: 1px solid #383940;
+  color: #d9f36a;
+  border-radius: 9px;
+  padding: 10px 14px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.year-statistics .stats-grid {
+  margin-bottom: 0;
+}
+
+.best-month {
+  font-size: 25px;
+}
+
+.analytics-section {
+  background: #191a1f;
+  border: 1px solid #2c2d33;
+  border-radius: 13px;
+  padding: 24px;
+}
+
+.analytics-section .section-heading {
+  margin-bottom: 22px;
+}
+
+.chart-total {
+  color: #92939a;
+  font-size: 12px;
+}
+
+.monthly-chart {
+  height: 190px;
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+  padding-top: 12px;
+}
+
+.monthly-column {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.chart-count {
+  height: 14px;
+  color: #a0a1a8;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.monthly-bar-track {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  align-items: end;
+  background: #25262b;
+  border-radius: 5px 5px 0 0;
+  overflow: hidden;
+}
+
+.monthly-bar {
+  width: 100%;
+  background: #d9f36a;
+  border-radius: 5px 5px 0 0;
+  transition: height .3s;
+}
+
+.chart-label {
+  color: #92939a;
+  font-size: 10px;
+}
+
+.weekday-chart,
+.platform-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.weekday-row {
+  display: grid;
+  grid-template-columns: 100px 1fr 28px;
+  align-items: center;
+  gap: 14px;
+}
+
+.weekday-row > span {
+  color: #a0a1a8;
+  font-size: 12px;
+}
+
+.weekday-row strong {
+  color: #eee;
+  font-size: 12px;
+  text-align: right;
+}
+
+.weekday-track {
+  height: 9px;
+  background: #25262b;
+  border-radius: 20px;
+  overflow: hidden;
+}
+
+.weekday-bar {
+  height: 100%;
+  background: #d9f36a;
+  border-radius: 20px;
+  transition: width .3s;
+}
+
+@media(max-width: 600px) {
+  .year-statistics {
+    gap: 20px;
+  }
+
+  .analytics-section {
+    padding: 16px;
+  }
+
+  .monthly-chart {
+    gap: 6px;
+    height: 160px;
+  }
+
+  .chart-label {
+    font-size: 9px;
+  }
+
+  .weekday-row {
+    grid-template-columns: 75px 1fr 22px;
+    gap: 9px;
+  }
+
+  .weekday-row > span {
+    font-size: 11px;
+  }
+}

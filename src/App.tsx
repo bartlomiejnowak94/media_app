@@ -3,7 +3,7 @@ import {
   Film, Plus, Search, Settings as SettingsIcon, Star, X,
   RefreshCw, Github, LoaderCircle, Pencil, Trash2,
   Image as ImageIcon, Clapperboard, Tv, LayoutDashboard,
-  Library, ArrowRight
+  Library, ArrowRight, ChartNoAxesCombined, CalendarDays
 } from "lucide-react";
 import { deleteMovie, loadMovies, saveMovie, testGitHub } from "./github";
 import type { Movie, Settings } from "./types";
@@ -53,6 +53,17 @@ function getLastWatched(movie: Movie): number {
     .filter(Number.isFinite);
 
   return parsed.length ? Math.max(...parsed) : 0;
+}
+
+function getWatchedDates(movie: Movie): string[] {
+  const dates = (movie as MovieData).frontmatter?.watched || [];
+
+  return dates
+    .map(value => {
+      const match = String(value).match(/\d{4}-\d{2}-\d{2}/);
+      return match ? match[0] : null;
+    })
+    .filter((date): date is string => date !== null);
 }
 
 function MovieGrid({
@@ -125,7 +136,8 @@ export default function App() {
   const [query, setQuery] = useState("");
 
   const [mediaSection, setMediaSection] = useState<"movies" | "tv">("movies");
-  const [movieView, setMovieView] = useState<"dashboard" | "library">("dashboard");
+  const [movieView, setMovieView] = useState<"overview" | "library" | "statistics">("overview");
+  const [selectedStatsYear, setSelectedStatsYear] = useState(new Date().getFullYear());
   const [filter, setFilter] = useState<"all" | "watched" | "backlog" | "thisYear">("all");
 
   const [showSettings, setShowSettings] = useState(false);
@@ -193,21 +205,115 @@ export default function App() {
     [watchedMovies]
   );
 
-const ratingDistribution = useMemo(() => {
-  const distribution = [2, 2.5, 3, 3.5, 4, 4.5, 5].map(rating => ({
-    rating,
-    count: watchedMovies.filter(
-      movie => getRating(movie) === rating
-    ).length
-  }));
+  const statsYears = useMemo(() => {
+  const years = new Set(
+    movies.flatMap(movie =>
+      getWatchedDates(movie).map(date => Number(date.slice(0, 4)))
+    )
+  );
 
-  return distribution;
-}, [watchedMovies]);
+  years.add(currentYear);
 
-const maxRatingCount = Math.max(
-  1,
-  ...ratingDistribution.map(item => item.count)
-);
+  return [...years].sort((a, b) => b - a);
+  }, [movies, currentYear]);
+
+  const yearWatches = useMemo(() => {
+    return movies.flatMap(movie =>
+      getWatchedDates(movie)
+        .filter(date => Number(date.slice(0, 4)) === selectedStatsYear)
+        .map(date => ({ movie, date }))
+    );
+  }, [movies, selectedStatsYear]);
+
+  const yearMovies = useMemo(() => {
+    const unique = new Map<string, Movie>();
+
+    yearWatches.forEach(({ movie }) => {
+      unique.set(movie.path, movie);
+    });
+
+    return [...unique.values()];
+  }, [yearWatches]);
+
+  const monthlyActivity = useMemo(() => {
+    return Array.from({ length: 12 }, (_, index) => ({
+      month: index,
+      count: yearWatches.filter(({ date }) =>
+        Number(date.slice(5, 7)) === index + 1
+      ).length
+    }));
+  }, [yearWatches]);
+
+  const weekdayActivity = useMemo(() => {
+    const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
+    return days.map((day, index) => ({
+      day,
+      count: yearWatches.filter(({ date }) => {
+        const [year, month, dayOfMonth] = date.split("-").map(Number);
+        const weekday = new Date(year, month - 1, dayOfMonth).getDay();
+        return (weekday + 6) % 7 === index;
+      }).length
+    }));
+  }, [yearWatches]);
+
+  const platformActivity = useMemo(() => {
+    const platforms = ["apple", "hbo", "kino", "netflix", "prime", "stremio", "yt"];
+
+    return platforms.map(platform => ({
+      platform,
+      count: yearMovies.filter(movie =>
+        getTags(movie).includes(`movie/${platform}/${selectedStatsYear}`)
+      ).length
+    }));
+  }, [yearMovies, selectedStatsYear]);
+
+  const yearAverageRating = yearMovies.length
+    ? (
+        yearMovies.reduce((sum, movie) => sum + (getRating(movie) || 0), 0) /
+        yearMovies.length
+      ).toFixed(2)
+    : "—";
+
+  const maxMonthlyCount = Math.max(1, ...monthlyActivity.map(item => item.count));
+  const maxWeekdayCount = Math.max(1, ...weekdayActivity.map(item => item.count));
+  const maxPlatformCount = Math.max(1, ...platformActivity.map(item => item.count));
+
+  const bestMonth = monthlyActivity.reduce(
+    (best, item) => item.count > best.count ? item : best,
+    monthlyActivity[0]
+  );
+
+  const monthNames = [
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+  ];
+
+  const platformNames: Record<string, string> = {
+    apple: "Apple",
+    hbo: "HBO",
+    kino: "Cinema",
+    netflix: "Netflix",
+    prime: "Prime Video",
+    stremio: "Stremio",
+    yt: "YouTube"
+  };
+
+  const ratingDistribution = useMemo(() => {
+    const distribution = [2, 2.5, 3, 3.5, 4, 4.5, 5].map(rating => ({
+      rating,
+      count: watchedMovies.filter(
+        movie => getRating(movie) === rating
+      ).length
+    }));
+
+    return distribution;
+  }, [watchedMovies]);
+
+  const maxRatingCount = Math.max(
+    1,
+    ...ratingDistribution.map(item => item.count)
+  );
 
 const averageRating = watchedMovies.length
   ? (
@@ -349,16 +455,24 @@ const averageRating = watchedMovies.length
           <>
             <div className="section-nav">
               <button
-                className={movieView === "dashboard" ? "selected" : ""}
-                onClick={() => setMovieView("dashboard")}
+                className={movieView === "overview" ? "selected" : ""}
+                onClick={() => setMovieView("overview")}
               >
-                <LayoutDashboard size={16} /> Dashboard
+                <LayoutDashboard size={16} /> Overview
               </button>
+
               <button
                 className={movieView === "library" ? "selected" : ""}
                 onClick={() => setMovieView("library")}
               >
                 <Library size={16} /> Library
+              </button>
+
+              <button
+                className={movieView === "statistics" ? "selected" : ""}
+                onClick={() => setMovieView("statistics")}
+              >
+                <ChartNoAxesCombined size={16} /> Statistics
               </button>
             </div>
 
@@ -396,7 +510,7 @@ const averageRating = watchedMovies.length
                 <LoaderCircle className="spin" size={30} />
                 <p>Loading your library...</p>
               </div>
-            ) : movieView === "dashboard" ? (
+            ) : movieView === "overview" ? (
               <div className="dashboard">
                 <div className="stats-grid">
                   <article className="stat-card">
@@ -478,9 +592,154 @@ const averageRating = watchedMovies.length
                   )}
                 </section>
               </div>
-            ) : (
-              <>
-                <div className="toolbar">
+              ) : movieView === "statistics" ? (
+                <div className="year-statistics">
+                  <div className="section-heading year-heading">
+                    <div>
+                      <p className="eyebrow">YOUR WATCHING HISTORY</p>
+                      <h2>Year in Review</h2>
+                    </div>
+
+                    <select
+                      className="year-select"
+                      value={selectedStatsYear}
+                      onChange={e => setSelectedStatsYear(Number(e.target.value))}
+                    >
+                      {statsYears.map(year => (
+                        <option key={year} value={year}>{year}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="stats-grid">
+                    <article className="stat-card">
+                      <div className="stat-icon"><Film size={19} /></div>
+                      <p className="stat-label">Unique movies</p>
+                      <div className="stat-value">{yearMovies.length}</div>
+                    </article>
+
+                    <article className="stat-card">
+                      <div className="stat-icon"><Clapperboard size={19} /></div>
+                      <p className="stat-label">Total watches</p>
+                      <div className="stat-value">{yearWatches.length}</div>
+                    </article>
+
+                    <article className="stat-card">
+                      <div className="stat-icon"><Star size={19} /></div>
+                      <p className="stat-label">Average rating</p>
+                      <div className="stat-value">{yearAverageRating}</div>
+                    </article>
+
+                    <article className="stat-card">
+                      <div className="stat-icon"><CalendarDays size={19} /></div>
+                      <p className="stat-label">Best month</p>
+                      <div className="stat-value best-month">
+                        {bestMonth.count ? monthNames[bestMonth.month] : "—"}
+                      </div>
+                    </article>
+                  </div>
+
+                  <section className="analytics-section">
+                    <div className="section-heading">
+                      <div>
+                        <p className="eyebrow">WATCHING HABITS</p>
+                        <h2>Monthly activity</h2>
+                      </div>
+                      <span className="chart-total">{yearWatches.length} watches</span>
+                    </div>
+
+                    <div className="monthly-chart">
+                      {monthlyActivity.map(item => (
+                        <div className="monthly-column" key={item.month}>
+                          <span className="chart-count">{item.count || ""}</span>
+                          <div className="monthly-bar-track">
+                            <div
+                              className="monthly-bar"
+                              style={{
+                                height: `${item.count / maxMonthlyCount * 100}%`
+                              }}
+                            />
+                          </div>
+                          <span className="chart-label">{monthNames[item.month]}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section className="analytics-section">
+                    <div className="section-heading">
+                      <div>
+                        <p className="eyebrow">WATCHING HABITS</p>
+                        <h2>Activity by weekday</h2>
+                      </div>
+                    </div>
+
+                    <div className="weekday-chart">
+                      {weekdayActivity.map(item => (
+                        <div className="weekday-row" key={item.day}>
+                          <span>{item.day}</span>
+                          <div className="weekday-track">
+                            <div
+                              className="weekday-bar"
+                              style={{
+                                width: `${item.count / maxWeekdayCount * 100}%`
+                              }}
+                            />
+                          </div>
+                          <strong>{item.count}</strong>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section className="analytics-section">
+                    <div className="section-heading">
+                      <div>
+                        <p className="eyebrow">WHERE YOU WATCH</p>
+                        <h2>Platforms</h2>
+                      </div>
+                    </div>
+
+                    <div className="platform-chart">
+                      {platformActivity.map(item => (
+                        <div className="weekday-row" key={item.platform}>
+                          <span>{platformNames[item.platform]}</span>
+                          <div className="weekday-track">
+                            <div
+                              className="weekday-bar"
+                              style={{
+                                width: `${item.count / maxPlatformCount * 100}%`
+                              }}
+                            />
+                          </div>
+                          <strong>{item.count}</strong>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section className="analytics-section">
+                    <div className="section-heading">
+                      <div>
+                        <p className="eyebrow">YOUR COLLECTION</p>
+                        <h2>Movies watched in {selectedStatsYear}</h2>
+                      </div>
+                      <span className="chart-total">{yearMovies.length} movies</span>
+                    </div>
+
+                    {yearMovies.length ? (
+                      <MovieGrid movies={yearMovies} onEdit={openEdit} />
+                    ) : (
+                      <div className="empty-state compact">
+                        <Film size={30} />
+                        <p>No movies watched in this year.</p>
+                      </div>
+                    )}
+                  </section>
+                </div>
+              ) : (
+                <>
+                  <div className="toolbar">
                   <div className="searchbox">
                     <Search size={17} />
                     <input
