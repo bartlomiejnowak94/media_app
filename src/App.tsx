@@ -194,20 +194,20 @@ export default function App() {
   );
 
   const ratingDistribution = useMemo(() => {
-  const distribution = [2, 3, 4, 5].map(rating => ({
-    rating,
-    count: watchedMovies.filter(
-      movie => getRating(movie) === rating
-    ).length
-  }));
+    const ratings = [2, 2.5, 3, 3.5, 4, 4.5, 5];
 
-  return distribution;
-}, [watchedMovies]);
+    return ratings.map(rating => ({
+      rating,
+      count: watchedMovies.filter(
+        movie => getRating(movie) === rating
+      ).length
+    }));
+  }, [watchedMovies]);
 
-const maxRatingCount = Math.max(
-  1,
-  ...ratingDistribution.map(item => item.count)
-);
+  const maxRatingCount = Math.max(
+    1,
+    ...ratingDistribution.map(item => item.count)
+  );
 
 const averageRating = watchedMovies.length
   ? (
