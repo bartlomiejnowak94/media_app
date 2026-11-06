@@ -669,14 +669,14 @@ const averageRating = watchedMovies.length
                     <h2>Movies by release year</h2>
                   </div>
                   <span className="chart-total">
-                    {selectedYearReleaseActivity.reduce((sum, item) => sum + item.count, 0)} movies
+                    {releaseYearActivity.reduce((sum, item) => sum + item.count, 0)} movies
                   </span>
                 </div>
 
-                {selectedYearReleaseActivity.length ? (
+                {releaseYearActivity.length ? (
                   <div className="year-horizontal-chart">
                     <div className="horizontal-bars">
-                      {selectedYearReleaseActivity.map(item => (
+                      {releaseYearActivity.map(item => (
                         <div
                           className="horizontal-bar-column"
                           key={item.year}
@@ -686,7 +686,7 @@ const averageRating = watchedMovies.length
                             <div
                               className="horizontal-bar"
                               style={{
-                                height: `${item.count / maxSelectedYearReleaseCount * 100}%`
+                                height: `${item.count / maxReleaseYearCount * 100}%`
                               }}
                             />
                           </div>
@@ -694,8 +694,8 @@ const averageRating = watchedMovies.length
                       ))}
                     </div>
                     <div className="horizontal-axis">
-                      <span>{selectedYearReleaseActivity[0]?.year}</span>
-                      <span>{selectedYearReleaseActivity[selectedYearReleaseActivity.length - 1]?.year}</span>
+                      <span>{releaseYearActivity[0]?.year}</span>
+                      <span>{releaseYearActivity[releaseYearActivity.length - 1]?.year}</span>
                     </div>
                   </div>
                 ) : (
@@ -897,10 +897,10 @@ const averageRating = watchedMovies.length
                       </div>
                     </div>
 
-                    {releaseYearActivity.length ? (
+                    {selectedYearReleaseActivity.length ? (
                       <div className="year-horizontal-chart">
                         <div className="horizontal-bars">
-                          {releaseYearActivity.map(item => (
+                          {selectedYearReleaseActivity.map(item => (
                             <div
                               className="horizontal-bar-column"
                               key={item.year}
@@ -910,7 +910,7 @@ const averageRating = watchedMovies.length
                                 <div
                                   className="horizontal-bar"
                                   style={{
-                                    height: `${item.count / maxReleaseYearCount * 100}%`
+                                    height: `${item.count / maxSelectedYearReleaseCount * 100}%`
                                   }}
                                 />
                               </div>
@@ -918,8 +918,8 @@ const averageRating = watchedMovies.length
                           ))}
                         </div>
                         <div className="horizontal-axis">
-                          <span>{releaseYearActivity[0]?.year}</span>
-                          <span>{releaseYearActivity[releaseYearActivity.length - 1]?.year}</span>
+                          <span>{selectedYearReleaseActivity[0]?.year}</span>
+                          <span>{selectedYearReleaseActivity[selectedYearReleaseActivity.length - 1]?.year}</span>
                         </div>
                       </div>
                     ) : (
