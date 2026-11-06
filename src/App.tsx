@@ -331,7 +331,7 @@ export default function App() {
     }));
   }, [yearMovies, selectedStatsYear]);
 
-  const releaseYearActivity = useMemo(() => {
+  const selectedYearReleaseActivity = useMemo(() => {
     const counts = new Map<number, number>();
 
     yearMovies.forEach(movie => {
@@ -352,10 +352,10 @@ export default function App() {
     }));
   }, [yearMovies]);
 
-const maxReleaseYearCount = Math.max(
-  1,
-  ...releaseYearActivity.map(item => item.count)
-);
+  const maxSelectedYearReleaseCount = Math.max(
+    1,
+    ...selectedYearReleaseActivity.map(item => item.count)
+  );
 
   const yearAverageRating = yearMovies.length
     ? (
@@ -669,14 +669,14 @@ const averageRating = watchedMovies.length
                     <h2>Movies by release year</h2>
                   </div>
                   <span className="chart-total">
-                    {releaseYearActivity.reduce((sum, item) => sum + item.count, 0)} movies
+                    {selectedYearReleaseActivity.reduce((sum, item) => sum + item.count, 0)} movies
                   </span>
                 </div>
 
-                {releaseYearActivity.length ? (
+                {selectedYearReleaseActivity.length ? (
                   <div className="year-horizontal-chart">
                     <div className="horizontal-bars">
-                      {releaseYearActivity.map(item => (
+                      {selectedYearReleaseActivity.map(item => (
                         <div
                           className="horizontal-bar-column"
                           key={item.year}
@@ -686,7 +686,7 @@ const averageRating = watchedMovies.length
                             <div
                               className="horizontal-bar"
                               style={{
-                                height: `${item.count / maxReleaseYearCount * 100}%`
+                                height: `${item.count / maxSelectedYearReleaseCount * 100}%`
                               }}
                             />
                           </div>
@@ -694,8 +694,8 @@ const averageRating = watchedMovies.length
                       ))}
                     </div>
                     <div className="horizontal-axis">
-                      <span>{releaseYearActivity[0]?.year}</span>
-                      <span>{releaseYearActivity[releaseYearActivity.length - 1]?.year}</span>
+                      <span>{selectedYearReleaseActivity[0]?.year}</span>
+                      <span>{selectedYearReleaseActivity[selectedYearReleaseActivity.length - 1]?.year}</span>
                     </div>
                   </div>
                 ) : (
