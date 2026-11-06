@@ -881,6 +881,82 @@ const averageRating = watchedMovies.length
                       </div>
                     )}
                   </section>
+
+                                    <section className="analytics-section">
+                    <div className="section-heading">
+                      <div>
+                        <p className="eyebrow">ALL-TIME ACTIVITY</p>
+                        <h3>Movies watched per year</h3>
+                      </div>
+                    </div>
+
+                    {yearlyWatchActivity.length ? (
+                      <div className="year-horizontal-chart">
+                        <div className="horizontal-bars">
+                          {yearlyWatchActivity.map(item => (
+                            <div
+                              className="horizontal-bar-column"
+                              key={item.year}
+                              title={`${item.year}: ${item.count} watches`}
+                            >
+                              <div className="horizontal-bar-track">
+                                <div
+                                  className="horizontal-bar"
+                                  style={{
+                                    height: `${item.count / maxYearlyWatches * 100}%`
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="horizontal-axis">
+                          <span>{yearlyWatchActivity[0]?.year}</span>
+                          <span>{yearlyWatchActivity[yearlyWatchActivity.length - 1]?.year}</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="chart-empty">No watching history available.</p>
+                    )}
+                  </section>
+
+                  <section className="analytics-section">
+                    <div className="section-heading">
+                      <div>
+                        <p className="eyebrow">FILM HISTORY</p>
+                        <h3>Movies by release year</h3>
+                      </div>
+                    </div>
+
+                    {releaseYearActivity.length ? (
+                      <div className="year-horizontal-chart">
+                        <div className="horizontal-bars">
+                          {releaseYearActivity.map(item => (
+                            <div
+                              className="horizontal-bar-column"
+                              key={item.year}
+                              title={`${item.year}: ${item.count} movies`}
+                            >
+                              <div className="horizontal-bar-track">
+                                <div
+                                  className="horizontal-bar"
+                                  style={{
+                                    height: `${item.count / maxReleaseYearCount * 100}%`
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="horizontal-axis">
+                          <span>{releaseYearActivity[0]?.year}</span>
+                          <span>{releaseYearActivity[releaseYearActivity.length - 1]?.year}</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="chart-empty">No movie data available.</p>
+                    )}
+                  </section>
                 </div>
               ) : (
                 <>
