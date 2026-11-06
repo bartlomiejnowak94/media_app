@@ -584,3 +584,65 @@
     gap: 9px;
   }
 }
+
+/* Horizontal year distribution charts */
+
+.year-horizontal-chart {
+  width: 100%;
+}
+
+.horizontal-bars {
+  height: 105px;
+  display: flex;
+  align-items: end;
+  gap: 3px;
+  padding: 5px 2px 0;
+}
+
+.horizontal-bar-column {
+  flex: 1;
+  min-width: 2px;
+  height: 100%;
+  display: flex;
+  align-items: end;
+  cursor: crosshair;
+}
+
+.horizontal-bar-track {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: end;
+  background: #25262b;
+  border-radius: 3px 3px 0 0;
+  overflow: hidden;
+}
+
+.horizontal-bar {
+  width: 100%;
+  min-height: 0;
+  background: #d9f36a;
+  border-radius: 3px 3px 0 0;
+  transition: background 0.2s;
+}
+
+.horizontal-bar-column:hover .horizontal-bar {
+  background: #efffae;
+}
+
+.horizontal-axis {
+  display: flex;
+  justify-content: space-between;
+  color: #92939a;
+  font-size: 10px;
+  font-weight: 600;
+  padding-top: 9px;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 600px) {
+  .horizontal-bars {
+    height: 85px;
+    gap: 2px;
+  }
+}

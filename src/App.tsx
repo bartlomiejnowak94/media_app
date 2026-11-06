@@ -189,49 +189,67 @@ export default function App() {
   );
 
   const yearlyWatchActivity = useMemo(() => {
-  const counts = new Map<number, number>();
+    const counts = new Map<number, number>();
 
-  movies.forEach(movie => {
-    getWatchedDates(movie).forEach(date => {
-      const year = Number(date.slice(0, 4));
+    movies.forEach(movie => {
+      getWatchedDates(movie).forEach(date => {
+        const year = Number(date.slice(0, 4));
+        counts.set(year, (counts.get(year) || 0) + 1);
+      });
+    });
+
+    if (!counts.size) return [];
+
+    const minYear = Math.min(...counts.keys());
+    const maxYear = Math.max(...counts.keys());
+
+    return Array.from(
+      { length: maxYear - minYear + 1 },
+      (_, i) => ({
+        year: minYear + i,
+        count: counts.get(minYear + i) || 0
+      })
+    );
+  }, [movies]);
+
+  const releaseYearActivity = useMemo(() => {
+    const counts = new Map<number, number>();
+
+    movies.forEach(movie => {
+      if (!getWatchedDates(movie).length) return;
+
+      const year = Number(movie.year);
+
+      if (!Number.isInteger(year) || year < 1888 || year > currentYear + 5) {
+        return;
+      }
+
       counts.set(year, (counts.get(year) || 0) + 1);
     });
-  });
 
-  return [...counts.entries()]
-    .map(([year, count]) => ({ year, count }))
-    .sort((a, b) => a.year - b.year);
-}, [movies]);
+    if (!counts.size) return [];
 
-const releaseYearActivity = useMemo(() => {
-  const counts = new Map<number, number>();
+    const minYear = Math.min(...counts.keys());
+    const maxYear = Math.max(...counts.keys());
 
-  movies.forEach(movie => {
-    if (!getWatchedDates(movie).length) return;
+    return Array.from(
+      { length: maxYear - minYear + 1 },
+      (_, i) => ({
+        year: minYear + i,
+        count: counts.get(minYear + i) || 0
+      })
+    );
+  }, [movies, currentYear]);
 
-    const year = Number(movie.year);
+  const maxYearlyWatches = Math.max(
+    1,
+    ...yearlyWatchActivity.map(item => item.count)
+  );
 
-    if (!Number.isInteger(year) || year < 1888 || year > currentYear + 5) {
-      return;
-    }
-
-    counts.set(year, (counts.get(year) || 0) + 1);
-  });
-
-  return [...counts.entries()]
-    .map(([year, count]) => ({ year, count }))
-    .sort((a, b) => a.year - b.year);
-}, [movies, currentYear]);
-
-const maxYearlyWatches = Math.max(
-  1,
-  ...yearlyWatchActivity.map(item => item.count)
-);
-
-const maxReleaseYearCount = Math.max(
-  1,
-  ...releaseYearActivity.map(item => item.count)
-);
+  const maxReleaseYearCount = Math.max(
+    1,
+    ...releaseYearActivity.map(item => item.count)
+  );
 
   const backlogMovies = useMemo(
     () => movies.filter(isBacklog),
@@ -246,7 +264,7 @@ const maxReleaseYearCount = Math.max(
   const recentlyWatched = useMemo(
     () => [...watchedMovies]
       .sort((a, b) => getLastWatched(b) - getLastWatched(a))
-      .slice(0, 5),
+      .slice(0, 6),
     [watchedMovies]
   );
 
@@ -589,21 +607,29 @@ const averageRating = watchedMovies.length
                 </div>
 
                 {yearlyWatchActivity.length ? (
-                  <div className="year-distribution">
-                    {yearlyWatchActivity.map(item => (
-                      <div className="year-row" key={item.year}>
-                        <span className="year-label">{item.year}</span>
-                        <div className="weekday-track">
-                          <div
-                            className="weekday-bar"
-                            style={{
-                              width: `${item.count / maxYearlyWatches * 100}%`
-                            }}
-                          />
+                  <div className="year-horizontal-chart">
+                    <div className="horizontal-bars">
+                      {yearlyWatchActivity.map(item => (
+                        <div
+                          className="horizontal-bar-column"
+                          key={item.year}
+                          title={`${item.year}: ${item.count} watches`}
+                        >
+                          <div className="horizontal-bar-track">
+                            <div
+                              className="horizontal-bar"
+                              style={{
+                                height: `${item.count / maxYearlyWatches * 100}%`
+                              }}
+                            />
+                          </div>
                         </div>
-                        <strong>{item.count}</strong>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
+                    <div className="horizontal-axis">
+                      <span>{yearlyWatchActivity[0]?.year}</span>
+                      <span>{yearlyWatchActivity[yearlyWatchActivity.length - 1]?.year}</span>
+                    </div>
                   </div>
                 ) : (
                   <p className="chart-empty">No watching history available.</p>
@@ -622,24 +648,32 @@ const averageRating = watchedMovies.length
                 </div>
 
                 {releaseYearActivity.length ? (
-                  <div className="year-distribution">
-                    {releaseYearActivity.map(item => (
-                      <div className="year-row" key={item.year}>
-                        <span className="year-label">{item.year}</span>
-                        <div className="weekday-track">
-                          <div
-                            className="weekday-bar"
-                            style={{
-                              width: `${item.count / maxReleaseYearCount * 100}%`
-                            }}
-                          />
+                  <div className="year-horizontal-chart">
+                    <div className="horizontal-bars">
+                      {releaseYearActivity.map(item => (
+                        <div
+                          className="horizontal-bar-column"
+                          key={item.year}
+                          title={`${item.year}: ${item.count} movies`}
+                        >
+                          <div className="horizontal-bar-track">
+                            <div
+                              className="horizontal-bar"
+                              style={{
+                                height: `${item.count / maxReleaseYearCount * 100}%`
+                              }}
+                            />
+                          </div>
                         </div>
-                        <strong>{item.count}</strong>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
+                    <div className="horizontal-axis">
+                      <span>{releaseYearActivity[0]?.year}</span>
+                      <span>{releaseYearActivity[releaseYearActivity.length - 1]?.year}</span>
+                    </div>
                   </div>
                 ) : (
-                  <p className="chart-empty">No release year data available.</p>
+                  <p className="chart-empty">No watching history available.</p>
                 )}
               </section>
 
