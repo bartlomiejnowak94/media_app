@@ -331,6 +331,32 @@ export default function App() {
     }));
   }, [yearMovies, selectedStatsYear]);
 
+  const releaseYearActivity = useMemo(() => {
+    const counts = new Map<number, number>();
+
+    yearMovies.forEach(movie => {
+      const year = Number(movie.year);
+      if (!Number.isInteger(year)) return;
+
+      counts.set(year, (counts.get(year) || 0) + 1);
+    });
+
+    if (!counts.size) return [];
+
+    const minYear = Math.min(...counts.keys());
+    const maxYear = Math.max(...counts.keys());
+
+    return Array.from({ length: maxYear - minYear + 1 }, (_, i) => ({
+      year: minYear + i,
+      count: counts.get(minYear + i) || 0
+    }));
+  }, [yearMovies]);
+
+const maxReleaseYearCount = Math.max(
+  1,
+  ...releaseYearActivity.map(item => item.count)
+);
+
   const yearAverageRating = yearMovies.length
     ? (
         yearMovies.reduce((sum, movie) => sum + (getRating(movie) || 0), 0) /
@@ -866,63 +892,6 @@ const averageRating = watchedMovies.length
                   <section className="analytics-section">
                     <div className="section-heading">
                       <div>
-                        <p className="eyebrow">YOUR COLLECTION</p>
-                        <h2>Movies watched in {selectedStatsYear}</h2>
-                      </div>
-                      <span className="chart-total">{yearMovies.length} movies</span>
-                    </div>
-
-                    {yearMovies.length ? (
-                      <MovieGrid movies={yearMovies} onEdit={openEdit} />
-                    ) : (
-                      <div className="empty-state compact">
-                        <Film size={30} />
-                        <p>No movies watched in this year.</p>
-                      </div>
-                    )}
-                  </section>
-
-                                    <section className="analytics-section">
-                    <div className="section-heading">
-                      <div>
-                        <p className="eyebrow">ALL-TIME ACTIVITY</p>
-                        <h3>Movies watched per year</h3>
-                      </div>
-                    </div>
-
-                    {yearlyWatchActivity.length ? (
-                      <div className="year-horizontal-chart">
-                        <div className="horizontal-bars">
-                          {yearlyWatchActivity.map(item => (
-                            <div
-                              className="horizontal-bar-column"
-                              key={item.year}
-                              title={`${item.year}: ${item.count} watches`}
-                            >
-                              <div className="horizontal-bar-track">
-                                <div
-                                  className="horizontal-bar"
-                                  style={{
-                                    height: `${item.count / maxYearlyWatches * 100}%`
-                                  }}
-                                />
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                        <div className="horizontal-axis">
-                          <span>{yearlyWatchActivity[0]?.year}</span>
-                          <span>{yearlyWatchActivity[yearlyWatchActivity.length - 1]?.year}</span>
-                        </div>
-                      </div>
-                    ) : (
-                      <p className="chart-empty">No watching history available.</p>
-                    )}
-                  </section>
-
-                  <section className="analytics-section">
-                    <div className="section-heading">
-                      <div>
                         <p className="eyebrow">FILM HISTORY</p>
                         <h3>Movies by release year</h3>
                       </div>
@@ -955,6 +924,25 @@ const averageRating = watchedMovies.length
                       </div>
                     ) : (
                       <p className="chart-empty">No movie data available.</p>
+                    )}
+                  </section>
+
+                  <section className="analytics-section">
+                    <div className="section-heading">
+                      <div>
+                        <p className="eyebrow">YOUR COLLECTION</p>
+                        <h2>Movies watched in {selectedStatsYear}</h2>
+                      </div>
+                      <span className="chart-total">{yearMovies.length} movies</span>
+                    </div>
+
+                    {yearMovies.length ? (
+                      <MovieGrid movies={yearMovies} onEdit={openEdit} />
+                    ) : (
+                      <div className="empty-state compact">
+                        <Film size={30} />
+                        <p>No movies watched in this year.</p>
+                      </div>
                     )}
                   </section>
                 </div>
