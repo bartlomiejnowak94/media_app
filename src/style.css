@@ -528,3 +528,59 @@
     font-size: 11px;
   }
 }
+
+/* Overview - yearly charts */
+
+.overview-chart {
+  margin-bottom: 0;
+}
+
+.year-distribution {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+}
+
+.year-row {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) 30px;
+  align-items: center;
+  gap: 13px;
+}
+
+.year-label {
+  color: #a0a1a8;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.year-row strong {
+  color: #eee;
+  font-size: 12px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.year-row .weekday-track {
+  height: 11px;
+}
+
+.chart-empty {
+  color: #85868e;
+  font-size: 12px;
+  text-align: center;
+  padding: 20px 0;
+  margin: 0;
+}
+
+@media(max-width: 600px) {
+  .year-distribution {
+    gap: 12px;
+  }
+
+  .year-row {
+    grid-template-columns: 42px minmax(0, 1fr) 25px;
+    gap: 9px;
+  }
+}

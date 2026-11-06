@@ -188,6 +188,51 @@ export default function App() {
     [movies]
   );
 
+  const yearlyWatchActivity = useMemo(() => {
+  const counts = new Map<number, number>();
+
+  movies.forEach(movie => {
+    getWatchedDates(movie).forEach(date => {
+      const year = Number(date.slice(0, 4));
+      counts.set(year, (counts.get(year) || 0) + 1);
+    });
+  });
+
+  return [...counts.entries()]
+    .map(([year, count]) => ({ year, count }))
+    .sort((a, b) => a.year - b.year);
+}, [movies]);
+
+const releaseYearActivity = useMemo(() => {
+  const counts = new Map<number, number>();
+
+  movies.forEach(movie => {
+    if (!getWatchedDates(movie).length) return;
+
+    const year = Number(movie.year);
+
+    if (!Number.isInteger(year) || year < 1888 || year > currentYear + 5) {
+      return;
+    }
+
+    counts.set(year, (counts.get(year) || 0) + 1);
+  });
+
+  return [...counts.entries()]
+    .map(([year, count]) => ({ year, count }))
+    .sort((a, b) => a.year - b.year);
+}, [movies, currentYear]);
+
+const maxYearlyWatches = Math.max(
+  1,
+  ...yearlyWatchActivity.map(item => item.count)
+);
+
+const maxReleaseYearCount = Math.max(
+  1,
+  ...releaseYearActivity.map(item => item.count)
+);
+
   const backlogMovies = useMemo(
     () => movies.filter(isBacklog),
     [movies]
@@ -531,6 +576,72 @@ const averageRating = watchedMovies.length
                     <div className="stat-value">{backlogMovies.length}</div>
                   </article>
                 </div>
+
+                <section className="analytics-section overview-chart">
+                <div className="section-heading">
+                  <div>
+                    <p className="eyebrow">YOUR WATCHING HISTORY</p>
+                    <h2>Movies watched per year</h2>
+                  </div>
+                  <span className="chart-total">
+                    {yearlyWatchActivity.reduce((sum, item) => sum + item.count, 0)} watches
+                  </span>
+                </div>
+
+                {yearlyWatchActivity.length ? (
+                  <div className="year-distribution">
+                    {yearlyWatchActivity.map(item => (
+                      <div className="year-row" key={item.year}>
+                        <span className="year-label">{item.year}</span>
+                        <div className="weekday-track">
+                          <div
+                            className="weekday-bar"
+                            style={{
+                              width: `${item.count / maxYearlyWatches * 100}%`
+                            }}
+                          />
+                        </div>
+                        <strong>{item.count}</strong>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="chart-empty">No watching history available.</p>
+                )}
+              </section>
+
+              <section className="analytics-section overview-chart">
+                <div className="section-heading">
+                  <div>
+                    <p className="eyebrow">FILM HISTORY</p>
+                    <h2>Movies by release year</h2>
+                  </div>
+                  <span className="chart-total">
+                    {releaseYearActivity.reduce((sum, item) => sum + item.count, 0)} movies
+                  </span>
+                </div>
+
+                {releaseYearActivity.length ? (
+                  <div className="year-distribution">
+                    {releaseYearActivity.map(item => (
+                      <div className="year-row" key={item.year}>
+                        <span className="year-label">{item.year}</span>
+                        <div className="weekday-track">
+                          <div
+                            className="weekday-bar"
+                            style={{
+                              width: `${item.count / maxReleaseYearCount * 100}%`
+                            }}
+                          />
+                        </div>
+                        <strong>{item.count}</strong>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="chart-empty">No release year data available.</p>
+                )}
+              </section>
 
                 <section className="rating-section">
                   <div className="section-heading">
