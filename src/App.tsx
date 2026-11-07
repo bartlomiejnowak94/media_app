@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Film, Plus, Search, Settings as SettingsIcon, Star, X,
   RefreshCw, Github, LoaderCircle, Pencil, Trash2,
@@ -6,6 +6,12 @@ import {
   Library, ArrowRight, ChartNoAxesCombined, CalendarDays
 } from "lucide-react";
 import { deleteMovie, loadMovies, saveMovie, testGitHub } from "./github";
+import {
+  MAX_RATING, MIN_RATING, RATING_OPTIONS, RATING_STEP,
+  applyPending, getLastWatched, getRating, getTags, getWatchedDates,
+  isBacklog, isValidRating, isWatched
+} from "./movies";
+import type { PendingChanges } from "./movies";
 import type { Movie, Settings } from "./types";
 
 const STORAGE_KEY = "media-app-settings";
@@ -16,55 +22,6 @@ const defaults: Settings = {
   folder: "Movies/Database",
   token: ""
 };
-
-type MovieData = Movie & {
-  frontmatter?: {
-    tags?: string[];
-    watched?: string[];
-    rating?: number | string | null;
-  };
-};
-
-function getTags(movie: Movie): string[] {
-  return ((movie as MovieData).frontmatter?.tags || []).map(String);
-}
-
-function getRating(movie: Movie): number | null {
-  const value = Number(movie.rating);
-  return movie.rating !== "" && movie.rating != null &&
-    Number.isFinite(value) && value > 0 ? value : null;
-}
-
-function isWatched(movie: Movie): boolean {
-  return getRating(movie) !== null;
-}
-
-function isBacklog(movie: Movie): boolean {
-  return getRating(movie) === null && getTags(movie).includes("backlog");
-}
-
-function getLastWatched(movie: Movie): number {
-  const dates = (movie as MovieData).frontmatter?.watched || [];
-  const parsed = dates
-    .map(value => {
-      const match = String(value).match(/\d{4}-\d{2}-\d{2}/);
-      return match ? new Date(match[0]).getTime() : NaN;
-    })
-    .filter(Number.isFinite);
-
-  return parsed.length ? Math.max(...parsed) : 0;
-}
-
-function getWatchedDates(movie: Movie): string[] {
-  const dates = (movie as MovieData).frontmatter?.watched || [];
-
-  return dates
-    .map(value => {
-      const match = String(value).match(/\d{4}-\d{2}-\d{2}/);
-      return match ? match[0] : null;
-    })
-    .filter((date): date is string => date !== null);
-}
 
 function MovieGrid({
   movies,
@@ -133,7 +90,17 @@ export default function App() {
   const [movies, setMovies] = useState<Movie[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [editorError, setEditorError] = useState("");
   const [query, setQuery] = useState("");
+
+  // The index is rebuilt by GitHub Actions and lags behind writes. Changes we
+  // made ourselves are kept in `pendingRef` and laid over the last loaded
+  // index until the index catches up.
+  const indexRef = useRef<Movie[]>([]);
+  const pendingRef = useRef<PendingChanges>(new Map());
+  const refreshSeq = useRef(0);
+  const reconcileTimer = useRef<number | undefined>(undefined);
+  const [pendingCount, setPendingCount] = useState(0);
 
   const [mediaSection, setMediaSection] = useState<"movies" | "tv">("movies");
   const [movieView, setMovieView] = useState<"overview" | "library" | "statistics">("overview");
@@ -161,23 +128,69 @@ export default function App() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
   }, [settings]);
 
-  async function refresh(notBefore?: number) {
+  function showMovies() {
+    const { movies: merged, remaining } = applyPending(indexRef.current, pendingRef.current);
+    pendingRef.current = remaining;
+    setPendingCount(remaining.size);
+    setMovies(merged);
+  }
+
+  async function refresh(options: { silent?: boolean } = {}) {
     if (!configured) {
       setShowSettings(true);
       return;
     }
 
-    setLoading(true);
-    setError("");
+    // Only the most recent request may update the screen, so a slow older
+    // response cannot overwrite newer data.
+    const seq = ++refreshSeq.current;
+
+    if (!options.silent) {
+      setLoading(true);
+      setError("");
+    }
 
     try {
-      setMovies(await loadMovies(settings, notBefore));
+      const indexMovies = await loadMovies(settings);
+      if (seq !== refreshSeq.current) return;
+      indexRef.current = indexMovies;
+      showMovies();
     } catch (e) {
-      setError((e as Error).message);
+      if (!options.silent && seq === refreshSeq.current) {
+        setError((e as Error).message);
+      }
     } finally {
-      setLoading(false);
+      if (!options.silent) setLoading(false);
     }
   }
+
+  // After a write, re-check the index in the background (with growing delays,
+  // about four minutes in total) until it contains our changes.
+  const RECONCILE_DELAYS = [8000, 15000, 25000, 40000, 60000, 90000];
+
+  function scheduleReconcile() {
+    window.clearTimeout(reconcileTimer.current);
+    let attempt = 0;
+
+    const tick = () => {
+      if (pendingRef.current.size === 0 || attempt >= RECONCILE_DELAYS.length) return;
+      reconcileTimer.current = window.setTimeout(async () => {
+        await refresh({ silent: true });
+        tick();
+      }, RECONCILE_DELAYS[attempt++]);
+    };
+
+    tick();
+  }
+
+  function registerChange(upsert: Movie | null, removedPath: string | null) {
+    if (upsert) pendingRef.current.set(upsert.path, upsert);
+    if (removedPath) pendingRef.current.set(removedPath, null);
+    showMovies();
+    scheduleReconcile();
+  }
+
+  useEffect(() => () => window.clearTimeout(reconcileTimer.current), []);
 
   useEffect(() => {
     if (configured) void refresh();
@@ -254,11 +267,6 @@ export default function App() {
   const backlogMovies = useMemo(
     () => movies.filter(isBacklog),
     [movies]
-  );
-
-  const thisYearMovies = useMemo(
-    () => movies.filter(movie => getTags(movie).includes(currentYearTag)),
-    [movies, currentYearTag]
   );
 
   const recentlyWatched = useMemo(
@@ -357,10 +365,12 @@ export default function App() {
     ...selectedYearReleaseActivity.map(item => item.count)
   );
 
-  const yearAverageRating = yearMovies.length
+  // Unrated movies must not drag the average down, so they are left out.
+  const ratedYearMovies = yearMovies.filter(movie => getRating(movie) !== null);
+  const yearAverageRating = ratedYearMovies.length
     ? (
-        yearMovies.reduce((sum, movie) => sum + (getRating(movie) || 0), 0) /
-        yearMovies.length
+        ratedYearMovies.reduce((sum, movie) => sum + (getRating(movie) ?? 0), 0) /
+        ratedYearMovies.length
       ).toFixed(2)
     : "—";
 
@@ -389,7 +399,7 @@ export default function App() {
   };
 
   const ratingDistribution = useMemo(() => {
-    const distribution = [2, 2.5, 3, 3.5, 4, 4.5, 5].map(rating => ({
+    const distribution = RATING_OPTIONS.map(rating => ({
       rating,
       count: watchedMovies.filter(
         movie => getRating(movie) === rating
@@ -433,6 +443,7 @@ const averageRating = watchedMovies.length
   }, [movies, filter, query, currentYearTag]);
 
   function openNew() {
+    setEditorError("");
     setEditing(null);
     setTitle("");
     setYear("");
@@ -443,6 +454,7 @@ const averageRating = watchedMovies.length
   }
 
   function openEdit(movie: Movie) {
+    setEditorError("");
     setEditing(movie);
     setTitle(movie.title);
     setYear(movie.year);
@@ -453,28 +465,36 @@ const averageRating = watchedMovies.length
   }
 
   async function save() {
-    if (!title.trim()) return;
+    // Errors are shown inside the editor: the page-level banner sits behind
+    // the modal and would be invisible.
+    setEditorError("");
 
-    if (!/^\d{4}$/.test(year.trim())) {
-      setError("Enter a valid year (YYYY).");
+    if (!title.trim()) {
+      setEditorError("Enter a title.");
       return;
     }
 
-    if (rating !== "" && (Number(rating) < 0 || Number(rating) > 10)) {
-      setError("Rating must be between 0 and 10.");
+    if (!/^\d{4}$/.test(year.trim())) {
+      setEditorError("Enter a valid year (YYYY).");
+      return;
+    }
+
+    if (!isValidRating(rating)) {
+      setEditorError(
+        `Rating must be empty or between ${MIN_RATING} and ${MAX_RATING} in steps of ${RATING_STEP}.`
+      );
       return;
     }
 
     setLoading(true);
-    setError("");
 
     try {
-      const indexNotBefore = Date.now();
-      await saveMovie(settings, editing, { title, year, rating, poster, note });
+      const result = await saveMovie(settings, editing, { title, year, rating, poster, note });
+      registerChange(result.movie, result.removedPath);
       setShowEditor(false);
-      await refresh(indexNotBefore);
+      if (result.warning) setError(result.warning);
     } catch (e) {
-      setError((e as Error).message);
+      setEditorError((e as Error).message);
     } finally {
       setLoading(false);
     }
@@ -487,9 +507,8 @@ const averageRating = watchedMovies.length
     setError("");
 
     try {
-      const indexNotBefore = Date.now();
       await deleteMovie(settings, movie);
-      await refresh(indexNotBefore);
+      registerChange(null, movie.path);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -1013,7 +1032,13 @@ const averageRating = watchedMovies.length
 
       <footer>
         <span>MEDIA LISTS · MARKDOWN LIBRARY</span>
-        <span>{loading ? "Loading..." : "All systems ready"}</span>
+        <span>
+          {loading
+            ? "Loading..."
+            : pendingCount
+              ? `Syncing ${pendingCount} change${pendingCount === 1 ? "" : "s"}…`
+              : "All systems ready"}
+        </span>
       </footer>
 
       {showSettings && (
@@ -1108,6 +1133,10 @@ const averageRating = watchedMovies.length
               <button
                 className="primary-btn"
                 onClick={() => {
+                  // A different repo/branch must not inherit pending changes.
+                  window.clearTimeout(reconcileTimer.current);
+                  pendingRef.current = new Map();
+                  setPendingCount(0);
                   setShowSettings(false);
                   void refresh();
                 }}
@@ -1139,7 +1168,14 @@ const averageRating = watchedMovies.length
               Enter the movie details. The file will be saved as
               Movies/Database/YEAR/Title (YEAR).md.
               The poster should be a direct image URL.
+              Characters not allowed in file names are replaced.
             </p>
+
+            {editorError && (
+              <div className="error-banner" role="alert">
+                <span>{editorError}</span>
+              </div>
+            )}
 
             <label>
               Title
@@ -1161,16 +1197,16 @@ const averageRating = watchedMovies.length
                 />
               </label>
               <label>
-                Rating (0–10)
-                <input
-                  type="number"
-                  min="0"
-                  max="10"
-                  step="0.5"
-                  value={rating}
-                  onChange={e => setRating(e.target.value)}
-                  placeholder="8.5"
-                />
+                Rating
+                <select value={rating} onChange={e => setRating(e.target.value)}>
+                  <option value="">Not rated</option>
+                  {rating !== "" && !RATING_OPTIONS.includes(Number(rating)) && (
+                    <option value={rating}>{rating} (outside {MIN_RATING}–{MAX_RATING})</option>
+                  )}
+                  {RATING_OPTIONS.map(value => (
+                    <option key={value} value={String(value)}>{value}</option>
+                  ))}
+                </select>
               </label>
             </div>
 

@@ -646,3 +646,21 @@
     gap: 2px;
   }
 }
+
+/* Rating select in the editor */
+.modal select {
+  display: block;
+  width: 100%;
+  margin-top: 7px;
+  border: 1px solid #383940;
+  background: #111216;
+  color: #f4f3f0;
+  border-radius: 8px;
+  padding: 11px 12px;
+  outline: 0;
+  font-size: 13px;
+}
+
+.modal select:focus {
+  border-color: #d9f36a;
+}
