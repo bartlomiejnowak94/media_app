@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Film, Plus, Search, Settings as SettingsIcon, Star, X,
-  RefreshCw, Github, LoaderCircle, Pencil, Trash2,
+  RefreshCw, Github, LoaderCircle, Pencil, Trash2, Info,
   Image as ImageIcon, Clapperboard, Tv, LayoutDashboard,
   Library, ArrowRight, ChartNoAxesCombined, CalendarDays
 } from "lucide-react";
 import { deleteMovie, loadMovies, saveMovie, testGitHub } from "./github";
+import MovieDetails from "./MovieDetails";
 import {
-  MAX_RATING, MIN_RATING, RATING_OPTIONS, RATING_STEP,
+  MAX_RATING, MIN_RATING, PLATFORM_NAMES, RATING_OPTIONS, RATING_STEP,
   applyPending, getLastWatched, getRating, getTags, getWatchedDates,
   isBacklog, isValidRating, isWatched
 } from "./movies";
@@ -25,10 +26,10 @@ const defaults: Settings = {
 
 function MovieGrid({
   movies,
-  onEdit
+  onSelect
 }: {
   movies: Movie[];
-  onEdit: (movie: Movie) => void;
+  onSelect: (movie: Movie) => void;
 }) {
   return (
     <div className="movie-grid">
@@ -36,8 +37,8 @@ function MovieGrid({
         <article className="movie-card" key={movie.path}>
           <button
             className="poster-button"
-            onClick={() => onEdit(movie)}
-            aria-label={`Edit ${movie.title}`}
+            onClick={() => onSelect(movie)}
+            aria-label={`Show details: ${movie.title}`}
           >
             {movie.poster ? (
               <img
@@ -54,7 +55,7 @@ function MovieGrid({
               </div>
             )}
             <span className="edit-overlay">
-              <Pencil size={17} />
+              <Info size={17} />
             </span>
           </button>
 
@@ -110,6 +111,7 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [showEditor, setShowEditor] = useState(false);
   const [editing, setEditing] = useState<Movie | null>(null);
+  const [details, setDetails] = useState<Movie | null>(null);
 
   const [title, setTitle] = useState("");
   const [year, setYear] = useState("");
@@ -388,16 +390,6 @@ export default function App() {
     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
   ];
 
-  const platformNames: Record<string, string> = {
-    apple: "Apple",
-    hbo: "HBO",
-    kino: "Cinema",
-    netflix: "Netflix",
-    prime: "Prime Video",
-    stremio: "Stremio",
-    yt: "YouTube"
-  };
-
   const ratingDistribution = useMemo(() => {
     const distribution = RATING_OPTIONS.map(rating => ({
       rating,
@@ -441,6 +433,20 @@ const averageRating = watchedMovies.length
 
     return result;
   }, [movies, filter, query, currentYearTag]);
+
+  function openDetails(movie: Movie) {
+    setDetails(movie);
+  }
+
+  // Escape closes the details card.
+  useEffect(() => {
+    if (!details) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setDetails(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [details]);
 
   function openNew() {
     setEditorError("");
@@ -773,7 +779,7 @@ const averageRating = watchedMovies.length
                   </div>
 
                   {recentlyWatched.length ? (
-                    <MovieGrid movies={recentlyWatched} onEdit={openEdit} />
+                    <MovieGrid movies={recentlyWatched} onSelect={openDetails} />
                   ) : (
                     <div className="empty-state compact">
                       <Film size={30} />
@@ -893,7 +899,7 @@ const averageRating = watchedMovies.length
                     <div className="platform-chart">
                       {platformActivity.map(item => (
                         <div className="weekday-row" key={item.platform}>
-                          <span>{platformNames[item.platform]}</span>
+                          <span>{PLATFORM_NAMES[item.platform] ?? item.platform}</span>
                           <div className="weekday-track">
                             <div
                               className="weekday-bar"
@@ -956,7 +962,7 @@ const averageRating = watchedMovies.length
                     </div>
 
                     {yearMovies.length ? (
-                      <MovieGrid movies={yearMovies} onEdit={openEdit} />
+                      <MovieGrid movies={yearMovies} onSelect={openDetails} />
                     ) : (
                       <div className="empty-state compact">
                         <Film size={30} />
@@ -1014,7 +1020,7 @@ const averageRating = watchedMovies.length
                     )}
                   </div>
                 ) : (
-                  <MovieGrid movies={visibleMovies} onEdit={openEdit} />
+                  <MovieGrid movies={visibleMovies} onSelect={openDetails} />
                 )}
               </>
             )}
@@ -1142,6 +1148,48 @@ const averageRating = watchedMovies.length
                 }}
               >
                 Save & Load
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {details && (
+        <div
+          className="modal-backdrop"
+          onMouseDown={e => e.target === e.currentTarget && setDetails(null)}
+        >
+          <section
+            className="modal details-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Details: ${details.title}`}
+          >
+            <div className="modal-head">
+              <div>
+                <p className="eyebrow">MOVIE DETAILS</p>
+                <h2>{details.title}</h2>
+              </div>
+              <button
+                className="icon-btn"
+                aria-label="Close"
+                onClick={() => setDetails(null)}
+              >
+                <X />
+              </button>
+            </div>
+
+            <MovieDetails movie={details} />
+
+            <div className="modal-actions">
+              <button
+                className="primary-btn"
+                onClick={() => {
+                  setDetails(null);
+                  openEdit(details);
+                }}
+              >
+                <Pencil size={16} /> Edit
               </button>
             </div>
           </section>

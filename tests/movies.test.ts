@@ -1,8 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  RATING_OPTIONS, applyPending, asArray, getLastWatched, getRating,
-  getTags, getWatchedDates, isBacklog, isValidRating, isWatched, sanitizeFilename
+  RATING_OPTIONS, applyPending, asArray, formatDate, getExtraTags, getLastWatched,
+  getList, getPlatformWatches, getRating, getTags, getText, getWatchedDates,
+  isBacklog, isValidRating, isWatched, safeUrl, sanitizeFilename, stripCoverFromBody,
+  stripWikilink, tmdbSize
 } from "../src/movies.ts";
 import type { Movie } from "../src/types.ts";
 
@@ -134,4 +136,55 @@ test("movies with the same title keep a stable order", () => {
   const first = applyPending([b, a], new Map()).movies.map(m => m.path);
   const second = applyPending([a, b], new Map()).movies.map(m => m.path);
   assert.deepEqual(first, second);
+});
+
+test("wikilinks are shown as plain names", () => {
+  assert.equal(stripWikilink("[[Sidney Lumet]]"), "Sidney Lumet");
+  assert.equal(stripWikilink("[[Some Note|Shown Name]]"), "Shown Name");
+  assert.equal(stripWikilink("  plain text "), "plain text");
+  assert.equal(stripWikilink(null), "");
+  const m = movie({ frontmatter: { directors: ["[[Clyde Geronimi]]", "[[Hamilton Luske]]", ""], genres: "[[family]]", seria: "[[Lady and the Tramp]]", nr_seri: 1 } });
+  assert.deepEqual(getList(m, "directors"), ["Clyde Geronimi", "Hamilton Luske"]);
+  assert.deepEqual(getList(m, "genres"), ["family"]);   // single value, not a list
+  assert.deepEqual(getList(m, "countries"), []);        // missing
+  assert.equal(getText(m, "seria"), "Lady and the Tramp");
+  assert.equal(getText(m, "nr_seri"), "1");
+  assert.equal(getText(m, "created"), "");
+  assert.equal(getText(movie({ frontmatter: { seria: { a: 1 } } }), "seria"), "");
+});
+
+test("only http(s) links are allowed", () => {
+  assert.equal(safeUrl("https://www.imdb.com/title/tt0048280"), "https://www.imdb.com/title/tt0048280");
+  assert.equal(safeUrl("javascript:alert(1)"), null);
+  assert.equal(safeUrl("data:text/html,<script>1</script>"), null);
+  assert.equal(safeUrl("not a url"), null);
+  assert.equal(safeUrl(null), null);
+  assert.equal(safeUrl(""), null);
+});
+
+test("platform tags and extra tags are told apart", () => {
+  const m = movie({ frontmatter: { tags: ["movie", "y2014", "y2025", "movie/netflix/2025", "movie/kino/2014", "movie/foo/2020", "backlog", "favourite"] } });
+  assert.deepEqual(getPlatformWatches(m), [
+    { platform: "Netflix", year: 2025 },
+    { platform: "foo", year: 2020 },
+    { platform: "Cinema", year: 2014 },
+  ]);
+  assert.deepEqual(getExtraTags(m), ["backlog", "favourite"]);
+});
+
+test("the cover image line is removed from the note text", () => {
+  assert.equal(stripCoverFromBody("![cover|200](https://x/y.jpg)\n"), "");
+  assert.equal(stripCoverFromBody("![cover|200](https://x/y.jpg)\n\nGreat film."), "Great film.");
+  assert.equal(stripCoverFromBody("Intro\n\n![cover](https://x/y.jpg)\r\nOutro"), "Intro\n\nOutro");
+  assert.equal(stripCoverFromBody("Only text"), "Only text");
+});
+
+test("dates and TMDB sizes", () => {
+  assert.equal(formatDate("2014-01-09"), "9 Jan 2014");
+  assert.equal(formatDate("2025-08-23"), "23 Aug 2025");
+  assert.equal(
+    tmdbSize("https://image.tmdb.org/t/p/original//340NcWz9SQXWQyf4oicMxjbrLOb.jpg", "w500"),
+    "https://image.tmdb.org/t/p/w500/340NcWz9SQXWQyf4oicMxjbrLOb.jpg"
+  );
+  assert.equal(tmdbSize("https://example.com/poster.jpg", "w500"), "https://example.com/poster.jpg");
 });

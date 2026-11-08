@@ -131,3 +131,89 @@ export function applyPending(
   );
   return { movies, remaining };
 }
+
+// ---------------------------------------------------------------------------
+// Movie details
+// ---------------------------------------------------------------------------
+
+/** "[[Sidney Lumet]]" -> "Sidney Lumet"; "[[Note|Alias]]" -> "Alias". */
+export function stripWikilink(value: unknown): string {
+  const text = String(value ?? "").trim();
+  const match = text.match(/^\[\[([^\]]*)\]\]$/);
+  if (!match) return text;
+  const inner = match[1];
+  const pipe = inner.indexOf("|");
+  return (pipe >= 0 ? inner.slice(pipe + 1) : inner).trim();
+}
+
+/** A frontmatter list (directors, genres, ...) as clean display strings. */
+export function getList(movie: Movie, key: string): string[] {
+  return asArray(movie.frontmatter?.[key]).map(stripWikilink).filter(Boolean);
+}
+
+/** A single frontmatter value as display text ("" when missing). */
+export function getText(movie: Movie, key: string): string {
+  const value = movie.frontmatter?.[key];
+  if (typeof value === "string") return stripWikilink(value);
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return "";
+}
+
+/** Only http(s) links are rendered as links; anything else (javascript:...) is dropped. */
+export function safeUrl(value: unknown): string | null {
+  try {
+    const url = new URL(String(value ?? "").trim());
+    return url.protocol === "http:" || url.protocol === "https:" ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
+export const PLATFORM_NAMES: Record<string, string> = {
+  apple: "Apple",
+  hbo: "HBO",
+  kino: "Cinema",
+  netflix: "Netflix",
+  prime: "Prime Video",
+  stremio: "Stremio",
+  yt: "YouTube"
+};
+
+const PLATFORM_TAG = /^movie\/([^/]+)\/(\d{4})$/;
+
+/** Tags such as "movie/netflix/2025" -> { platform: "Netflix", year: 2025 }, newest first. */
+export function getPlatformWatches(movie: Movie): { platform: string; year: number }[] {
+  return getTags(movie)
+    .map(tag => tag.match(PLATFORM_TAG))
+    .filter((match): match is RegExpMatchArray => match !== null)
+    .map(match => ({ platform: PLATFORM_NAMES[match[1]] ?? match[1], year: Number(match[2]) }))
+    .sort((a, b) => b.year - a.year);
+}
+
+/** Tags worth showing: not "movie", the "yYYYY" watch-year tags, or platform tags. */
+export function getExtraTags(movie: Movie): string[] {
+  return getTags(movie).filter(tag =>
+    tag !== "movie" && !/^y\d{4}$/.test(tag) && !PLATFORM_TAG.test(tag)
+  );
+}
+
+/** The note text without the embedded cover image line. */
+export function stripCoverFromBody(body: string): string {
+  return (body ?? "")
+    .replace(/^[ \t]*!\[cover(?:\|\d+)?\]\([^\n]*\)[ \t]*$/m, "")
+    .replace(/(?:\r?\n){3,}/g, "\n\n") // no big gap where the image used to be
+    .trim();
+}
+
+/** "2014-01-09" -> "9 Jan 2014" */
+export function formatDate(iso: string): string {
+  const [year, month, day] = iso.split("-").map(Number);
+  return new Date(year, month - 1, day).toLocaleDateString("en-GB", {
+    day: "numeric", month: "short", year: "numeric"
+  });
+}
+
+/** TMDB serves the same image at several sizes; "original" can be ~1 MB. */
+export function tmdbSize(url: string, size: string): string {
+  return url.replace(/\/t\/p\/original\/+/, `/t/p/${size}/`);
+}
